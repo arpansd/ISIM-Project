@@ -95,3 +95,4 @@ for i in range(0,NUM_PLOTS):
     plt.imshow(features[n_im][2])
     plt.title('"Shades of grey"  image #'+str(n_im))
 plt.show()
+# commentar
