@@ -18,6 +18,15 @@ import matplotlib.pyplot as plt
 import cv2
 #%matplotlib qt
 
+def chunked_iterable(iterable, size):
+    # helper function to itarate over chunks
+    it = iter(iterable)
+    while True:
+        chunk = tuple(itertools.islice(it, size))
+        if not chunk:
+            break
+        yield chunk
+
 def extract_color_stats(image):
 	# split the input image into its respective RGB color channels
 	# and then create a feature vector with 6 values: the mean and

@@ -13,7 +13,7 @@ from PIL import Image
 import itertools
 
 def chunked_iterable(iterable, size):
-# helper function to itarate over chunks
+# Auxiliary function to iterate over chunks
     it = iter(iterable)
     while True:
         chunk = tuple(itertools.islice(it, size))
@@ -41,24 +41,36 @@ def load_data_batch(datapath,batch_size = 20):
     return img_hog,img_addrs_list
 
 ''
-def normalize(feat_array):
+def normalize_by_length(feat_array,norm_order=1):
     # Auxiliary function to normalize feature vectors
-    f_norm = []
-    return f_norm 
+    feat_array_norm = []
+    for f in feat_array:
+        f_norm = np.linalg.norm(f,ord=norm_order) # L1 Norm by default
+        feat_array_norm.append(f/f_norm)
+    feat_array_norm = np.array(feat_array_norm)   
+    return feat_array_norm 
 
 
 def main():
 
     # define variables to extract features
-    datapath = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input'
+    path_train = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input'
+    path_test = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Test_Input'
     batch_size = 20
-    img_hog,img_addrs_list = load_data_batch(datapath,batch_size)
-    print('length of img_hog: ' , len(img_hog))
-    print('length of each hog_vector:' , len(img_hog[0]))
+    # Extraxt features
+    img_train_hog,img_train_addrs_list = load_data_batch(path_train,batch_size)
+    img_test_hog,img_test_addrs_list = load_data_batch(path_test,batch_size)
+    print('length of img_hog: ' , len(img_train_hog))
+    print('length of each hog_vector:' , len(img_train_hog[0]))
     
     # normalize feature vector
+    norm_order = 1
+    img_train_hog_norm = normalize_by_length(img_train_hog,norm_order)
+    img_test_hog_norm = normalize_by_length(img_test_hog,norm_order)
 
-    # Define training data and validation data
+    # Split training data and validation data
+    
+
 
     # Train classifier
 
@@ -66,7 +78,8 @@ def main():
 
     # Test
 
-
+if __name__ == "__main__":
+    main()
 
 
 
