@@ -1,4 +1,4 @@
-# Pahse 1 of ISIM Project
+# Phase 1 of ISIM Project
 # Simple Classification Task
 
 import matplotlib.pyplot as plt
@@ -17,6 +17,7 @@ import cv2
 import itertools
 import pandas as pd
 import ntpath
+import time
 
 def chunked_iterable(iterable, size):
 # Auxiliary function to iterate over chunks
@@ -32,24 +33,21 @@ def load_data_batch(datapath,batch_size = 20):
     valid_img_type = '.jpg' # all images are type jpg
     # laod all image addrs into a list
     img_addrs_list = glob.glob(datapath + '/*' + valid_img_type)
+    #img_addrs_list = img_addrs_list # TODO for testing reduced number of images
     img_ident_list = [None] * len(img_addrs_list) 
-    img_hog = [None] * len(img_addrs_list)
+    img_hog = []
     for i,addr in enumerate(img_addrs_list): 
         img_ident = ntpath.basename(addr)
         img_ident = img_ident[:-len(valid_img_type)]
         img_ident_list[i] = img_ident # list of img names
     counter = 0
-    idx = 0
     for batch in chunked_iterable(img_addrs_list,size=batch_size): # iterate over each batch
             counter += 1      
             for addr in batch:
                 img = ski.imread(addr)
-                hog_vector = hog(img,orientations=9,pixels_per_cell=(64,64))
-                #img_hog.append(hog_vector) # TODO allocate list, because appending is inefficient!
-                img_hog[idx] = hog_vector 
-                idx += 1
-            print('processing batch {} of {}'.format(counter,len(img_addrs_list)//batch_size),'\n')
-            idx += 1
+                hog_vector = hog(img,orientations=9,pixels_per_cell=(64,64),block_norm='L2-Hys')
+                img_hog.append(hog_vector) # TODO allocate list, because appending is inefficient!
+            print('processing batch {} of {}'.format(counter,len(img_addrs_list)//batch_size))
     img_hog = np.array(img_hog) # transform to np-array
     return img_hog, img_ident_list
 
@@ -83,19 +81,20 @@ def train_val_split(dataset,ident_dataset,label_train,label_val):
 
 def sort_data(data,ident_data,ident_reference):
     # Auxiliary Fct to sort data acc. to a sorted ident list
-    (_,dim_data) = data.shape
-    n_data_sorted = len(ident_reference)-1 # length without header
+    #_,dim_data = data.shape TODO only gives shape of axis 0
+    dim_data = len(data[0])
+    n_data_sorted = len(ident_data)-1 # length without header
     data_sorted = np.empty([n_data_sorted,dim_data])
     idx_sorted = np.empty([n_data_sorted])
-    for i,ident in enumerate(ident_reference['image']):
-        idx_sorted[i] = ident_data.index(ident)
+    for i,ident in enumerate(ident_data['image']):
+        idx_sorted[i] = ident_reference.index(ident)
         data_sorted[i] = data[idx_sorted[i]]
 
     return data_sorted
 
-
 def main():
-
+    t = time.time() # measure execution time
+    
     # data paths and groundtruth
     path_train = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input'
     path_test = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Test_Input'
@@ -111,14 +110,18 @@ def main():
     scaling_switch = False # True: scaling on
 
     # Extract features 
-    hog_feat_train,ident_train = load_data_batch(path_train, batch_size=20)
-    hog_feat_test,ident_train = load_data_batch(path_test, batch_size=20)
-    print('length of img_hog: ' , len(hog_feat_train))
-    print('length of each hog_vector:' , len(hog_feat_train[0]))
+    hog_feat_train,ident_train = load_data_batch(path_train, batch_size=40)
+    print('length of hog_train: ' , len(hog_feat_train))
+    print('shape of hog_train:' , hog_feat_train.shape)
+    print('length of each hog vect:' , len(hog_feat_train[0]))
+    hog_feat_test,ident_train = load_data_batch(path_test, batch_size=40)
     
+    elapsed = time.time() - t
+    print('elapsed time = ', elapsed)
+
     # Split into training data and validation data according to ground truth 
-    hog_feat_train_sorted = sort_data(hog_feat_train,ident_train,gt_train)
-    hog_feat_val_sorted = sort_data(hog_feat_train,ident_train,gt_val)
+    hog_feat_train_sorted = sort_data(hog_feat_train,gt_train,ident_train)
+    hog_feat_val_sorted = sort_data(hog_feat_train,gt_val,ident_train)
     
     # scale feature vector
     if scaling_switch == True:
@@ -151,8 +154,7 @@ def main():
     r2_score_val = r2_score(gt_val_array,label_pred)
     mse_val = mean_squared_error(gt_val_array,label_pred)
     print('r2_score = {}, mse = {}'.format(r2_score_val,mse_val))
-
-
+    
 if __name__ == "__main__":
     main()
 
