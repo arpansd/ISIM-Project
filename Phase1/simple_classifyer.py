@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error, r2_score #metrics for model eval.
 import skimage.io as ski
 from skimage.feature import hog
+from skimage.transform import resize
 import cv2
 import itertools
 import pandas as pd
@@ -28,28 +29,38 @@ def chunked_iterable(iterable, size):
             break
         yield chunk
 
+def clahe(img):
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    lab_planes = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    lab_planes[0] = clahe.apply(lab_planes[0])
+    lab = cv2.merge(lab_planes)
+    cl1 = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    return cl1
+
 def load_data_batch(datapath,batch_size = 20):
 # Auxiliary Function to load images batchwise from a specific path
     valid_img_type = '.jpg' # all images are type jpg
     # laod all image addrs into a list
     img_addrs_list = glob.glob(datapath + '/*' + valid_img_type)
-    #img_addrs_list = img_addrs_list # TODO for testing reduced number of images
-    img_ident_list = [None] * len(img_addrs_list) 
+    img_id_list = [None] * len(img_addrs_list) 
     img_hog = []
     for i,addr in enumerate(img_addrs_list): 
-        img_ident = ntpath.basename(addr)
-        img_ident = img_ident[:-len(valid_img_type)]
-        img_ident_list[i] = img_ident # list of img names
+        img_id = ntpath.basename(addr)
+        img_id = img_id[:-len(valid_img_type)]
+        img_id_list[i] = img_id # list of img names
     counter = 0
     for batch in chunked_iterable(img_addrs_list,size=batch_size): # iterate over each batch
             counter += 1      
             for addr in batch:
                 img = ski.imread(addr)
+                img = clahe(img) # apply clahe
+                img = resize(img,[512, 512]) # resize image
                 hog_vector = hog(img,orientations=9,pixels_per_cell=(64,64),block_norm='L2-Hys')
                 img_hog.append(hog_vector) # TODO allocate list, because appending is inefficient!
             print('processing batch {} of {}'.format(counter,len(img_addrs_list)//batch_size))
     img_hog = np.array(img_hog) # transform to np-array
-    return img_hog, img_ident_list
+    return img_hog, img_id_list
 
 def normalize_by_length(feat_array,norm_order=1):
     # Auxiliary function to normalize feature vectors
@@ -79,28 +90,35 @@ def train_val_split(dataset,ident_dataset,label_train,label_val):
     
     return data_train, data_val
 
-def sort_data(data,ident_data,ident_reference):
+def sort_data(data,id_filtered,id_ref):
     # Auxiliary Fct to sort data acc. to a sorted ident list
     #_,dim_data = data.shape TODO only gives shape of axis 0
     dim_data = len(data[0])
-    n_data_sorted = len(ident_data)-1 # length without header
-    data_sorted = np.empty([n_data_sorted,dim_data])
-    idx_sorted = np.empty([n_data_sorted])
-    for i,ident in enumerate(ident_data['image']):
-        idx_sorted[i] = ident_reference.index(ident)
-        data_sorted[i] = data[idx_sorted[i]]
+    n_data_filtered = len(id_filtered) # length without header
+    data_filtered = np.empty([n_data_filtered,dim_data])
+    #idx_filtered = np.empty([n_data_filtered],dtype=int)
+    print('len data_filtered:{}, shape:{}'.format(len(data_filtered),data_filtered.shape))
+    print('len id_filtered:', len(id_filtered['image']))
+    for i,id in enumerate(id_filtered['image']):
+        #idx_filtered[i] = id_ref.index(id)
+        idx = id_ref.index(id)
+        data_filtered[i,:] = data[idx]
 
-    return data_sorted
+    return data_filtered
+
+#########################################################################################################
+############################ main #######################################################################
+#########################################################################################################
 
 def main():
     t = time.time() # measure execution time
     
     # data paths and groundtruth
-    path_train = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input'
-    path_test = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Test_Input'
-    path_train_gt = '/Users/meko/Documents/Repos/ISIM-Project_local/data/groundtruth_train.csv'
-    path_val_gt = '/Users/meko/Documents/Repos/ISIM-Project_local/data/groundtruth_val.csv'
-    gt_train = pd.read_csv(path_train_gt,sep=',')
+    path_train = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input_red'
+    path_test = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Test_Input_red'
+    path_train_gt = '/Users/meko/Documents/Repos/ISIM-Project_local/data/groundtruth_train_red.csv'
+    path_val_gt = '/Users/meko/Documents/Repos/ISIM-Project_local/data/groundtruth_val_red.csv'
+    gt_train = pd.read_csv(path_train_gt,sep=';') # TODO red: ';'
     gt_val = pd.read_csv(path_val_gt,sep=',')
     gt_train_array = gt_train.values
     gt_train_array = gt_train_array[:,1:]
@@ -110,7 +128,7 @@ def main():
     scaling_switch = False # True: scaling on
 
     # Extract features 
-    hog_feat_train,ident_train = load_data_batch(path_train, batch_size=40)
+    hog_feat_train,id_train = load_data_batch(path_train, batch_size=20)
     print('length of hog_train: ' , len(hog_feat_train))
     print('shape of hog_train:' , hog_feat_train.shape)
     print('length of each hog vect:' , len(hog_feat_train[0]))
@@ -120,8 +138,12 @@ def main():
     print('elapsed time = ', elapsed)
 
     # Split into training data and validation data according to ground truth 
-    hog_feat_train_sorted = sort_data(hog_feat_train,gt_train,ident_train)
-    hog_feat_val_sorted = sort_data(hog_feat_train,gt_val,ident_train)
+    #print('id_train: ', id_train)
+    #print('id_train type:', type(id_train))
+    #print('id_train len:', len(id_train))
+
+    hog_feat_train_sorted = sort_data(hog_feat_train,gt_train,id_train)
+    hog_feat_val_sorted = sort_data(hog_feat_train,gt_val,id_train)
     
     # scale feature vector
     if scaling_switch == True:
@@ -151,6 +173,7 @@ def main():
     
     # Test
     label_pred = clf.predict(hog_feat_val_sorted)
+    print('label_pred: ', label_pred)
     r2_score_val = r2_score(gt_val_array,label_pred)
     mse_val = mean_squared_error(gt_val_array,label_pred)
     print('r2_score = {}, mse = {}'.format(r2_score_val,mse_val))
