@@ -11,56 +11,12 @@ from sklearn.pipeline import make_pipeline
 from sklearn.ensemble import RandomForestRegressor 
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error, r2_score #metrics for model eval.
-import skimage.io as ski
-from skimage.feature import hog
-from skimage.transform import resize
+from extract_img_features import extract_img_features
 import cv2
 import itertools
 import pandas as pd
-import ntpath
 import time
 
-def chunked_iterable(iterable, size):
-# Auxiliary function to iterate over chunks
-    it = iter(iterable)
-    while True:
-        chunk = tuple(itertools.islice(it, size))
-        if not chunk:
-            break
-        yield chunk
-
-def clahe(img):
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    lab_planes = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    lab_planes[0] = clahe.apply(lab_planes[0])
-    lab = cv2.merge(lab_planes)
-    cl1 = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-    return cl1
-
-def load_data_batch(datapath,batch_size = 20):
-# Auxiliary Function to load images batchwise from a specific path
-    valid_img_type = '.jpg' # all images are type jpg
-    # laod all image addrs into a list
-    img_addrs_list = glob.glob(datapath + '/*' + valid_img_type)
-    img_id_list = [None] * len(img_addrs_list) 
-    img_hog = []
-    for i,addr in enumerate(img_addrs_list): 
-        img_id = ntpath.basename(addr)
-        img_id = img_id[:-len(valid_img_type)]
-        img_id_list[i] = img_id # list of img names
-    counter = 0
-    for batch in chunked_iterable(img_addrs_list,size=batch_size): # iterate over each batch
-            counter += 1      
-            for addr in batch:
-                img = ski.imread(addr)
-                img = clahe(img) # apply clahe
-                img = resize(img,[512, 512]) # resize image
-                hog_vector = hog(img,orientations=9,pixels_per_cell=(64,64),block_norm='L2-Hys')
-                img_hog.append(hog_vector) # TODO allocate list, because appending is inefficient!
-            print('processing batch {} of {}'.format(counter,len(img_addrs_list)//batch_size))
-    img_hog = np.array(img_hog) # transform to np-array
-    return img_hog, img_id_list
 
 def normalize_by_length(feat_array,norm_order=1):
     # Auxiliary function to normalize feature vectors
@@ -92,7 +48,6 @@ def train_val_split(dataset,ident_dataset,label_train,label_val):
 
 def sort_data(data,id_filtered,id_ref):
     # Auxiliary Fct to sort data acc. to a sorted ident list
-    #_,dim_data = data.shape TODO only gives shape of axis 0
     dim_data = len(data[0])
     n_data_filtered = len(id_filtered) # length without header
     data_filtered = np.empty([n_data_filtered,dim_data])
@@ -111,37 +66,35 @@ def sort_data(data,id_filtered,id_ref):
 #########################################################################################################
 
 def main():
+    # set parameters
+    scaling_switch = False # True: scaling on
     t = time.time() # measure execution time
     
-    # data paths and groundtruth
+    # data paths
     path_train = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input_red'
     path_test = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Test_Input_red'
     path_train_gt = '/Users/meko/Documents/Repos/ISIM-Project_local/data/groundtruth_train_red.csv'
     path_val_gt = '/Users/meko/Documents/Repos/ISIM-Project_local/data/groundtruth_val_red.csv'
+
+    # Import ground truth
     gt_train = pd.read_csv(path_train_gt,sep=';') # TODO red: ';'
     gt_val = pd.read_csv(path_val_gt,sep=',')
     gt_train_array = gt_train.values
     gt_train_array = gt_train_array[:,1:]
     gt_val_array = gt_val.values
     gt_val_array = gt_val_array[:,1:]
-    # set variables
-    scaling_switch = False # True: scaling on
-
-    # Extract features 
-    hog_feat_train,id_train = load_data_batch(path_train, batch_size=20)
+    
+    # Load images and extract features
+    hog_feat_train,id_train = extract_img_features(path_train, batch_size=20)
     print('length of hog_train: ' , len(hog_feat_train))
     print('shape of hog_train:' , hog_feat_train.shape)
     print('length of each hog vect:' , len(hog_feat_train[0]))
-    hog_feat_test,ident_train = load_data_batch(path_test, batch_size=40)
+    hog_feat_test,id_test = extract_img_features(path_test, batch_size=40)
     
     elapsed = time.time() - t
     print('elapsed time = ', elapsed)
 
     # Split into training data and validation data according to ground truth 
-    #print('id_train: ', id_train)
-    #print('id_train type:', type(id_train))
-    #print('id_train len:', len(id_train))
-
     hog_feat_train_sorted = sort_data(hog_feat_train,gt_train,id_train)
     hog_feat_val_sorted = sort_data(hog_feat_train,gt_val,id_train)
     
