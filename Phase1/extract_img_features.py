@@ -35,7 +35,7 @@ def extract_img_features(datapath, batch_size = 20):
         cl1 = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
         return cl1
 #_____________________________________________________________________________    
-    
+    out_size = 512 # resize pixel #TODO
     valid_img_type = '.jpg' # all images are type jpg
     # laod all image addrs into a list
     img_addrs_list = glob.glob(datapath + '/*' + valid_img_type)
@@ -51,8 +51,13 @@ def extract_img_features(datapath, batch_size = 20):
             for addr in batch:
                 img = ski.imread(addr)
                 img = clahe(img) # apply clahe
-                img = resize(img,[512, 512]) # resize image TODO intelligent cropping here
-                hog_vector = hog(img,orientations=9,pixels_per_cell=(64,64),block_norm='L2-Hys')
+                img = resize(img,[out_size, out_size],order=1, # resize image TODO intelligent cropping here
+                            mode='constant',
+                            cval=0, clip=True, 
+                            preserve_range=True,
+                            anti_aliasing=True)    
+
+                hog_vector = hog(img,orientations=9,pixels_per_cell=(64,64),block_norm='L2-Hys',multichannel=True)
                 img_hog.append(hog_vector) # TODO allocate list, because appending is inefficient!
             print('processing batch {} of {}'.format(counter,len(img_addrs_list)//batch_size))
     img_hog = np.array(img_hog) # transform to np-array

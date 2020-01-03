@@ -17,7 +17,7 @@ import os, os.path
 import matplotlib.pyplot as plt
 import cv2
 #%matplotlib qt
-
+'''
 def chunked_iterable(iterable, size):
     # helper function to itarate over chunks
     it = iter(iterable)
@@ -65,17 +65,39 @@ def color_constancy(img,pw,gamma):
     rgb_vec = 1/(rgb_vec*np.sqrt(3))
     img = np.multiply(img, rgb_vec)
     return img.astype(img_dtype)
-
+'''
 imgs=[]
 features=[]
 path = os.path.dirname(os.path.realpath(__file__))+ "/img"
+path = '/Users/meko/Documents/Repos/ISIM-Project_local/data/ISIC_2019_Training_Input'
 #valid_images = [".jpg",".gif",".png",".tga"]
 
 valid_images = [".jpg"]
+width = []
+height = []
+count = 1
+total_img = len(os.listdir(path))
 for f in os.listdir(path):
     ext = os.path.splitext(f)[1]
     if ext.lower() not in valid_images:
         continue
+
+    with Image.open(os.path.join(path,f)) as img:
+        w,h = img.size
+        width.append(w)
+        height.append(h)
+    print('iteration {} of {}'.format(count,total_img))     
+    count += 1   
+width_vect = np.array(width)
+heigth_vect = np.array(height)
+val_w = np.unique(width_vect)
+val_h = np.unique(heigth_vect)
+print('len w', len(val_w))
+print('len h', len(val_h))     
+print('w',val_w)
+print('h',val_h)
+
+'''
     temp=[]
     img=Image.open(os.path.join(path,f))
     imgs.append(img)
@@ -86,7 +108,7 @@ for f in os.listdir(path):
     temp.append(img_gray)
     temp.append(img_grayscaled)
     features.append(temp)
-
+    print('img_size' , img.size)
 #pick and plot random image
 NUM_PLOTS=5
 n=np.random.choice(range(len(imgs)), NUM_PLOTS, replace=False)
@@ -105,3 +127,4 @@ for i in range(0,NUM_PLOTS):
     plt.title('"Shades of grey"  image #'+str(n_im))
 plt.show()
 # commentar
+'''

@@ -126,7 +126,9 @@ def main():
     
     # Test
     label_pred = clf.predict(hog_feat_val_sorted)
-    print('label_pred: ', label_pred)
+    print('type = ', type(label_pred))
+    np.savetxt('ouput_label',np.around(label_pred,decimals=2),fmt=('%.3f'),delimiter=',',header='image,MEL,NV,BCC,AK,BKL,DF,VASC,SCC,UNK')
+    #print('label_pred: ', label_pred)
     r2_score_val = r2_score(gt_val_array,label_pred)
     mse_val = mean_squared_error(gt_val_array,label_pred)
     print('r2_score = {}, mse = {}'.format(r2_score_val,mse_val))
